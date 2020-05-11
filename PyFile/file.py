@@ -29,6 +29,7 @@ class HashType(Enum):
     STRING = 0
     BYTES = 1
 
+
 class FileClass(Enum):
     HIDDEN = 0
     TEMPORARY = 1
@@ -37,8 +38,20 @@ class FileClass(Enum):
 
 
 class File(object):
-    __slots__ = ["_path", "_mode", "_path_obj", "cached_stamp", "_file_io_obj", "exists", "is_open", "file_class", "deleted", "backup_file"]
-    def __init__(self, path: str, open_file=True, mode='r', temporary=False):
+    __slots__ = [
+        "_path",
+        "_mode",
+        "_path_obj",
+        "cached_stamp",
+        "_file_io_obj",
+        "exists",
+        "is_open",
+        "file_class",
+        "deleted",
+        "backup_file",
+    ]
+
+    def __init__(self, path: str, open_file=True, mode="r", temporary=False):
         self._path = path
         self._mode = mode
         self._path_obj: pathlib.Path or None = None
@@ -62,12 +75,12 @@ class File(object):
                 self.open(mode)
                 self.is_open = True
 
-            if self.name[0] == '.':
+            if self.name[0] == ".":
                 if temporary:
                     self.file_class = FileClass.HIDDEN_TEMP
                 else:
                     self.file_class = FileClass.HIDDEN
-            elif self.name[0] != '.':
+            elif self.name[0] != ".":
                 if temporary:
                     self.file_class = FileClass.TEMPORARY
                 else:
@@ -80,7 +93,10 @@ class File(object):
         :return: No return value
         """
         self.close()
-        if self.file_class == FileClass.TEMPORARY or self.file_class == FileClass.HIDDEN_TEMP:
+        if (
+            self.file_class == FileClass.TEMPORARY
+            or self.file_class == FileClass.HIDDEN_TEMP
+        ):
             self.delete()
 
     @property
@@ -99,7 +115,7 @@ class File(object):
 
         :return: String containing the extension of the file.
         """
-        return ('.' if period else '') + self.name.split('.')[-1]
+        return ("." if period else "") + self.name.split(".")[-1]
 
     @property
     def mode(self):
@@ -107,7 +123,7 @@ class File(object):
 
     @mode.setter
     def mode(self, value):
-        if value in {'r', 'w', 'w+', 'rb', 'a', 'a+'}:
+        if value in FILE_MODES:
             self._mode = value
         else:
             raise Exception(f"Invalid file access mode: '{value}'")
@@ -234,7 +250,7 @@ class File(object):
         file_buf = self.read(config.HASH_BLOCK_SIZE)
         hash_func = hashlib.md5
         while len(file_buf) > 0:
-            hash_func().update(bytes(file_buf.encode('utf-8')))
+            hash_func().update(bytes(file_buf.encode("utf-8")))
             file_buf = self.read(config.HASH_BLOCK_SIZE)
 
         if hash_type == HashType.STRING:
@@ -252,7 +268,7 @@ class File(object):
         file_buf = self.read(config.HASH_BLOCK_SIZE)
         hash_func = hashlib.sha256
         while len(file_buf) > 0:
-            hash_func().update(bytes(file_buf.encode('utf-8')))
+            hash_func().update(bytes(file_buf.encode("utf-8")))
             file_buf = self.read(config.HASH_BLOCK_SIZE)
 
         if hash_type == HashType.STRING:
@@ -303,11 +319,11 @@ class File(object):
     def backup(self, directory=""):
         timestamp = utilities.get_formatted_datetime()
         hash_file_name = f"{directory}{timestamp}.SHA256"
-        hash_file = open(hash_file_name, 'w+')
+        hash_file = open(hash_file_name, "w+")
         hash_file.write(self.sha256())
         hash_file.close()
 
-        if not os.path.exists(directory) and directory != '':
+        if not os.path.exists(directory) and directory != "":
             os.makedirs(directory)
 
         # Zip the files together
@@ -331,5 +347,3 @@ class File(object):
             if re.search(re.compile(regex), line):
                 matches.append(line)
         return matches
-
-
