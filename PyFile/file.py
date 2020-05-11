@@ -4,6 +4,7 @@ from enum import Enum
 import hashlib
 import time
 import zipfile
+import re
 from PyFile import config
 from PyFile import utilities
 
@@ -17,36 +18,70 @@ Should provide:
 """
 
 # TODO: write
-# TODO: finish hashes
 # TODO: encrypt
-# TODO: size
 # TODO: append
+
+FILE_MODES = {"r", "rb", "r+", "rb+", "w", "wb", "w+", "wb+", "a", "ab", "a+", "ab+"}
+CREATE_MODES = {"w", "wb", "w+", "wb+", "a", "ab", "a+", "ab+"}
 
 
 class HashType(Enum):
-    STRING = 1
-    BYTES = 2
+    STRING = 0
+    BYTES = 1
+
+class FileClass(Enum):
+    HIDDEN = 0
+    TEMPORARY = 1
+    HIDDEN_TEMP = 2
+    NORMAL = 3
 
 
 class File(object):
-    def __init__(self, path: str, open_file=True, mode='r'):
+    __slots__ = ["_path", "_mode", "_path_obj", "cached_stamp", "_file_io_obj", "exists", "is_open", "file_class", "deleted", "backup_file"]
+    def __init__(self, path: str, open_file=True, mode='r', temporary=False):
         self._path = path
-        self._mode = 'r'
+        self._mode = mode
         self._path_obj: pathlib.Path or None = None
         self.cached_stamp: float = -1
         self._file_io_obj = None
         self.exists = True
         self.is_open = False
+        self.file_class = None
         self.deleted = False
         self.backup_file = None
+
+        if not os.path.exists(path) and mode in CREATE_MODES:
+            open(path, mode).close()
 
         if os.path.exists(path) and os.path.isfile(path):
             self._path_obj: pathlib.Path = pathlib.Path(path)
             self.cached_stamp: float = os.stat(self.abs_path).st_mtime
             self.exists = True
+
             if open_file:
                 self.open(mode)
                 self.is_open = True
+
+            if self.name[0] == '.':
+                if temporary:
+                    self.file_class = FileClass.HIDDEN_TEMP
+                else:
+                    self.file_class = FileClass.HIDDEN
+            elif self.name[0] != '.':
+                if temporary:
+                    self.file_class = FileClass.TEMPORARY
+                else:
+                    self.file_class = FileClass.NORMAL
+
+    def __del__(self):
+        """
+        Destructor for the class instance. Deletes the related file if it is marked as temporary.
+
+        :return: No return value
+        """
+        self.close()
+        if self.file_class == FileClass.TEMPORARY or self.file_class == FileClass.HIDDEN_TEMP:
+            self.delete()
 
     @property
     def name(self) -> str:
@@ -85,7 +120,6 @@ class File(object):
     def group(self):
         ...
 
-
     @property
     def abs_path(self) -> str:
         """
@@ -109,7 +143,7 @@ class File(object):
         """
         Property returning the modification timestamp of the file
 
-        :return: FLoat
+        :return: Float
         """
         return self.stat.st_mtime
 
@@ -284,3 +318,18 @@ class File(object):
             backup.write(hash_file_name)
 
         os.remove(hash_file_name)
+
+    def grep(self, regex: str) -> list:
+        """
+        Basic grep functionality for the file contents.
+
+        :param regex: Regular expression to match.
+        :return: List containing all matching lines.
+        """
+        matches = []
+        for line in self.readlines():
+            if re.search(re.compile(regex), line):
+                matches.append(line)
+        return matches
+
+
