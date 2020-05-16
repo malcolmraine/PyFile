@@ -15,11 +15,12 @@ Should provide:
     - Contents hashes
     - Open and close
     - Modification checks
+    - Basename, 
+    - filename, 
+    - dirname
+    - touch
+    
 """
-
-# TODO: write
-# TODO: encrypt
-# TODO: append
 
 FILE_MODES = {"r", "rb", "r+", "rb+", "w", "wb", "w+", "wb+", "a", "ab", "a+", "ab+"}
 CREATE_MODES = {"w", "wb", "w+", "wb+", "a", "ab", "a+", "ab+"}
@@ -75,12 +76,12 @@ class File(object):
                 self.open(mode)
                 self.is_open = True
 
-            if self.name[0] == ".":
+            if self.name[0].startswith('.'):
                 if temporary:
                     self.file_class = FileClass.HIDDEN_TEMP
                 else:
                     self.file_class = FileClass.HIDDEN
-            elif self.name[0] != ".":
+            elif not self.name[0].startswith('.'):
                 if temporary:
                     self.file_class = FileClass.TEMPORARY
                 else:
@@ -115,7 +116,7 @@ class File(object):
 
         :return: String containing the extension of the file.
         """
-        return ("." if period else "") + self.name.split(".")[-1]
+        return ('.' if period else '') + self.name.split('.')[-1]
 
     @property
     def mode(self):
@@ -155,7 +156,7 @@ class File(object):
         return str(self._path_obj.relative_to("./"))
 
     @property
-    def stamp(self) -> float:
+    def last_modified(self) -> float:
         """
         Property returning the modification timestamp of the file
 
@@ -208,7 +209,7 @@ class File(object):
         """
         return os.chmod(self.abs_path, mode)
 
-    def update_stamp(self) -> float:
+    def touch(self) -> float:
         """
         Updates the cached modification timestamp.
 
