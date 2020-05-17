@@ -2,7 +2,9 @@ language: python
 python:
   - "3.7"
 
-before_script: cd tests
+before_script:
+  - cp tests/test_utilities.py ./
+  - cp tests/test_file.py ./
 script:
   - python test_utilities.py
   - python test_file.py
