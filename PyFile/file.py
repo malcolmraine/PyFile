@@ -5,6 +5,7 @@ import hashlib
 import time
 import zipfile
 import re
+from pwd import getpwuid
 from PyFile import config
 from PyFile import utilities
 
@@ -12,15 +13,11 @@ from PyFile import utilities
 Should provide:
     - Contents access
     - Seek
-    - Contents hashes
-    - Open and close
-    - Modification checks
     - Basename, 
     - filename, 
     - dirname
-    - touch
-    
 """
+
 
 FILE_MODES = {"r", "rb", "r+", "rb+", "w", "wb", "w+", "wb+", "a", "ab", "a+", "ab+"}
 CREATE_MODES = {"w", "wb", "w+", "wb+", "a", "ab", "a+", "ab+"}
@@ -69,8 +66,6 @@ class File(object):
 
         if os.path.exists(path) and os.path.isfile(path):
             self._path_obj: pathlib.Path = pathlib.Path(path)
-            self.cached_stamp: float = os.stat(self.abs_path).st_mtime
-            self.exists = True
 
             if open_file:
                 self.open(mode)
@@ -86,6 +81,9 @@ class File(object):
                     self.file_class = FileClass.TEMPORARY
                 else:
                     self.file_class = FileClass.NORMAL
+
+        self.cached_stamp: float = os.stat(self.abs_path).st_mtime
+        self.exists = True
 
     def __del__(self):
         """
@@ -131,11 +129,11 @@ class File(object):
 
     @property
     def owner(self):
-        ...
+        return self._path_obj.owner()
 
     @property
     def group(self):
-        ...
+        return self._path_obj.group()
 
     @property
     def abs_path(self) -> str:
@@ -180,7 +178,7 @@ class File(object):
 
         :return: Boolean indicating whether the file has been modified.
         """
-        return self.cached_stamp == self.stamp
+        return self.cached_stamp < self.last_modified
 
     @property
     def line_cnt(self) -> int:
@@ -211,21 +209,25 @@ class File(object):
 
     def touch(self) -> float:
         """
-        Updates the cached modification timestamp.
+        Updates the cached modification timestamp and creates the file if it doesn't exist.
 
         :return: The updated timestamp.
         """
-        self.cached_stamp = os.stat(self.abs_path).st_mtime
-        return self.cached_stamp
+        if self.exists:
+            os.utime(self._path, None)
+        else:
+            self.open('a')
+            self.close()
+        return self.last_modified
 
-    def open(self, mode) -> bool:
+    def open(self, mode=None) -> bool:
         """
         Opens the file. Basically wrapper for the builtin open() function.
 
         :return: Boolean indicating successful operation.
         """
         try:
-            self._file_io_obj = open(self.abs_path, mode)
+            self._file_io_obj = open(self.abs_path, mode if mode is not None else self.mode)
             self.is_open = True
             return self.is_open
         except Exception as ex:
