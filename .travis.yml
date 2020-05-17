@@ -1,6 +1,8 @@
 language: python
 python:
   - "3.7"
+
+before_script: cd project
 script:
-  - cd tests && python test_utilities.py
-  - cd tests && python test_file.py
+  - python test_utilities.py
+  - python test_file.py
