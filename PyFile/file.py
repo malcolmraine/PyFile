@@ -9,18 +9,22 @@ from pwd import getpwuid
 from PyFile import config
 from PyFile import utilities
 
-"""
-Should provide:
-    - Contents access
-    - Seek
-    - Basename, 
-    - filename, 
-    - dirname
-"""
 
-
-FILE_MODES = {"r", "rb", "r+", "rb+", "w", "wb", "w+", "wb+", "a", "ab", "a+", "ab+"}
-CREATE_MODES = {"w", "wb", "w+", "wb+", "a", "ab", "a+", "ab+"}
+FILE_MODES: set = {
+    "r",
+    "rb",
+    "r+",
+    "rb+",
+    "w",
+    "wb",
+    "w+",
+    "wb+",
+    "a",
+    "ab",
+    "a+",
+    "ab+",
+}
+CREATE_MODES: set = {"w", "wb", "w+", "wb+", "a", "ab", "a+", "ab+"}
 
 
 class HashType(Enum):
@@ -50,15 +54,15 @@ class File(object):
     ]
 
     def __init__(self, path: str, open_file=True, mode="r", temporary=False):
-        self._path = path
-        self._mode = mode
+        self._path: str = path
+        self._mode: str = mode
         self._path_obj: pathlib.Path or None = None
         self.cached_stamp: float = -1
         self._file_io_obj = None
-        self.exists = True
-        self.is_open = False
+        self.exists: bool = True
+        self.is_open: bool = False
         self.file_class = None
-        self.deleted = False
+        self.deleted: bool = False
         self.backup_file = None
 
         if not os.path.exists(path) and mode in CREATE_MODES:
@@ -71,19 +75,19 @@ class File(object):
                 self.open(mode)
                 self.is_open = True
 
-            if self.name[0].startswith('.'):
+            if self.basename[0].startswith("."):
                 if temporary:
                     self.file_class = FileClass.HIDDEN_TEMP
                 else:
                     self.file_class = FileClass.HIDDEN
-            elif not self.name[0].startswith('.'):
+            elif not self.basename[0].startswith("."):
                 if temporary:
                     self.file_class = FileClass.TEMPORARY
                 else:
                     self.file_class = FileClass.NORMAL
 
         self.cached_stamp: float = os.stat(self.abs_path).st_mtime
-        self.exists = True
+        self.exists: bool = True
 
     def __del__(self):
         """
@@ -99,13 +103,32 @@ class File(object):
             self.delete()
 
     @property
-    def name(self) -> str:
+    def basename(self) -> str:
         """
-        Property returning the name of the file.
+        Property returning the name of the file with the extension.
 
         :return: String containing the name of the file.
         """
         return str(self._path_obj.name)
+
+    @property
+    def dirname(self) -> str:
+        """
+        Property returning the directory the file is located in.
+
+        :return: String containing the name of the file.
+        """
+        return str(self.abs_path[: -len(self.basename)])
+
+    @property
+    def filename(self) -> str:
+        """
+        Property returning the name of the file without the extension.
+
+        :return: String containing the name of the file.
+        """
+        print(self.ext)
+        return str(self._path_obj.name)[: -len(self.ext)]
 
     @property
     def ext(self, period=True) -> str:
@@ -114,10 +137,10 @@ class File(object):
 
         :return: String containing the extension of the file.
         """
-        return ('.' if period else '') + self.name.split('.')[-1]
+        return ("." if period else "") + self.basename.split(".")[-1]
 
     @property
-    def mode(self):
+    def mode(self) -> str:
         return self._mode
 
     @mode.setter
@@ -128,11 +151,11 @@ class File(object):
             raise Exception(f"Invalid file access mode: '{value}'")
 
     @property
-    def owner(self):
+    def owner(self) -> str:
         return self._path_obj.owner()
 
     @property
-    def group(self):
+    def group(self) -> str:
         return self._path_obj.group()
 
     @property
@@ -198,14 +221,18 @@ class File(object):
         """
         return os.stat(self.abs_path)
 
-    def chmod(self, mode):
+    def chmod(self, mode: str or int) -> str or int:
         """
         Wrapper for builtin chmod
 
         :param mode: File mode
         :return: Output form os.chmod function call.
         """
-        return os.chmod(self.abs_path, mode)
+        if isinstance(mode, str):
+            self._mode = mode
+            return self._mode
+        elif isinstance(mode, int):
+            return os.chmod(self.abs_path, mode)
 
     def touch(self) -> float:
         """
@@ -216,7 +243,7 @@ class File(object):
         if self.exists:
             os.utime(self._path, None)
         else:
-            self.open('a')
+            self.open("a")
             self.close()
         return self.last_modified
 
@@ -227,13 +254,15 @@ class File(object):
         :return: Boolean indicating successful operation.
         """
         try:
-            self._file_io_obj = open(self.abs_path, mode if mode is not None else self.mode)
+            self._file_io_obj = open(
+                self.abs_path, mode if mode is not None else self.mode
+            )
             self.is_open = True
             return self.is_open
         except Exception as ex:
             raise ex
 
-    def close(self):
+    def close(self) -> bool:
         """
         Closes the file. Basically a wrapper for the builtin in close() function.
 
@@ -242,6 +271,8 @@ class File(object):
         if self.is_open:
             self._file_io_obj.close()
             return True
+        else:
+            return False
 
     def md5(self, hash_type=HashType.STRING) -> str or int or hex or bytes:
         """
@@ -316,12 +347,25 @@ class File(object):
         else:
             return self._file_io_obj.readlines()
 
-    def write(self, string):
-        self._file_io_obj.write(string)
+    def write(self, string) -> int:
+        """
+
+        :param string:
+        :return:
+        """
+        return self._file_io_obj.write(string)
 
     def backup(self, directory=""):
-        timestamp = utilities.get_formatted_datetime()
-        hash_file_name = f"{directory}{timestamp}.SHA256"
+        """
+
+        :param directory:
+        :return:
+        """
+        timestamp: str = utilities.get_formatted_datetime()
+        self.backup_file: str = f"{directory}{timestamp}_{self.basename}.bak"
+
+        # We want to include a hash of the file's contents for integrity checks.
+        hash_file_name: str = f"{directory}{timestamp}.SHA256"
         hash_file = open(hash_file_name, "w+")
         hash_file.write(self.sha256())
         hash_file.close()
@@ -330,13 +374,12 @@ class File(object):
             os.makedirs(directory)
 
         # Zip the files together
-        with zipfile.ZipFile(
-            f"{directory}{timestamp}_{self.name}.bak", "w", zipfile.ZIP_DEFLATED
-        ) as backup:
+        with zipfile.ZipFile(self.backup_file, "w", zipfile.ZIP_DEFLATED) as backup:
             backup.write(self.rel_path)
             backup.write(hash_file_name)
 
         os.remove(hash_file_name)
+        return self.backup_file
 
     def grep(self, regex: str) -> list:
         """
@@ -345,7 +388,7 @@ class File(object):
         :param regex: Regular expression to match.
         :return: List containing all matching lines.
         """
-        matches = []
+        matches: list = []
         for line in self.readlines():
             if re.search(re.compile(regex), line):
                 matches.append(line)
