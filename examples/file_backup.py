@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-File: __init__.py
+File: examples/file_backup.py
 Description:
 Author: Malcolm Hall
 Version: 1
@@ -27,5 +27,3 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
-
-HASH_BLOCK_SIZE = 65535

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-File: __init__.py
+File: examples/basic_usage.py
 Description:
 Author: Malcolm Hall
 Version: 1
@@ -28,4 +28,4 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-HASH_BLOCK_SIZE = 65535
+import PyFile
