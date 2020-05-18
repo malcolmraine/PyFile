@@ -118,7 +118,7 @@ class File(object):
 
         :return: String containing the name of the file.
         """
-        return str(self.abs_path[: -len(self.basename)])
+        return str(self.abs_path[: -(len(self.basename) + 1)])
 
     @property
     def filename(self) -> str:
@@ -127,7 +127,6 @@ class File(object):
 
         :return: String containing the name of the file.
         """
-        print(self.ext)
         return str(self._path_obj.name)[: -len(self.ext)]
 
     @property
@@ -270,6 +269,7 @@ class File(object):
         """
         if self.is_open:
             self._file_io_obj.close()
+            self.is_open = False
             return True
         else:
             return False
@@ -283,6 +283,9 @@ class File(object):
         """
         file_buf = self.read(config.HASH_BLOCK_SIZE)
         hash_func = hashlib.md5
+
+        if not self.is_open:
+            self.open('r')
         while len(file_buf) > 0:
             hash_func().update(bytes(file_buf.encode("utf-8")))
             file_buf = self.read(config.HASH_BLOCK_SIZE)
@@ -301,6 +304,10 @@ class File(object):
         """
         file_buf = self.read(config.HASH_BLOCK_SIZE)
         hash_func = hashlib.sha256
+
+        if not self.is_open:
+            self.open('r')
+
         while len(file_buf) > 0:
             hash_func().update(bytes(file_buf.encode("utf-8")))
             file_buf = self.read(config.HASH_BLOCK_SIZE)
@@ -393,3 +400,15 @@ class File(object):
             if re.search(re.compile(regex), line):
                 matches.append(line)
         return matches
+
+    def truncate(self, n=None) -> None:
+        """
+        Truncates the file to a specified size. Defaults to clearing the whole file.
+
+        :param n: Number of byte to truncate to.
+        :return: No return value.
+        """
+        if n is None and self._file_io_obj is not None:
+            self._file_io_obj.truncate(0)
+        elif self._file_io_obj is not None:
+            self._file_io_obj.truncate(n)
