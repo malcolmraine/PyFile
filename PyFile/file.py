@@ -33,10 +33,8 @@ import os
 import pathlib
 from enum import Enum
 import hashlib
-import time
 import zipfile
 import re
-from pwd import getpwuid
 from PyFile import config
 from PyFile import utilities
 
@@ -82,6 +80,8 @@ class File(object):
         "file_class",
         "deleted",
         "backup_file",
+        "_sha256_hash",
+        "_md5_hash",
     ]
 
     def __init__(self, path: str, open_file=True, mode="r", temporary=False):
@@ -95,6 +95,8 @@ class File(object):
         self.file_class = None
         self.deleted: bool = False
         self.backup_file = None
+        self._sha256_hash: str or None = None
+        self._md5_hash: str or None = None
 
         if not os.path.exists(path) and mode in CREATE_MODES:
             open(path, mode).close()
@@ -198,7 +200,7 @@ class File(object):
         return str(self._path_obj.absolute())
 
     @property
-    def rel_path(self) -> str:
+    def relative_path(self) -> str:
         """
         Property returning the path of the file relative to the current directory.
 
@@ -312,19 +314,11 @@ class File(object):
 
         :return: Hash of the file contents.
         """
-        file_buf = self.read(config.HASH_BLOCK_SIZE)
-        hash_func = hashlib.md5
-
-        if not self.is_open:
-            self.open('r')
-        while len(file_buf) > 0:
-            hash_func().update(bytes(file_buf.encode("utf-8")))
-            file_buf = self.read(config.HASH_BLOCK_SIZE)
-
-        if hash_type == HashType.STRING:
-            return hash_func().hexdigest()
-        elif hash_type == HashType.BYTES:
-            return hash_func().digest()
+        if self.modified or self._md5_hash is None:
+            self._md5_hash = self._get_hash(hashlib.md5, hash_type)
+            return self._md5_hash
+        else:
+            return self._md5_hash
 
     def sha256(self, hash_type=HashType.STRING) -> str or int or hex or bytes:
         """
@@ -333,15 +327,26 @@ class File(object):
 
         :return: Hash of the file contents
         """
-        file_buf = self.read(config.HASH_BLOCK_SIZE)
-        hash_func = hashlib.sha256
+        if self.modified or self._sha256_hash is None:
+            self._sha256_hash = self._get_hash(hashlib.sha256, hash_type)
+            return self._sha256_hash
+        else:
+            return self._sha256_hash
 
+    def _get_hash(self, hash_func, hash_type):
+        close_before_returning = False
         if not self.is_open:
             self.open('r')
+            close_before_returning = True
+
+        file_buf = self.read(config.HASH_BLOCK_SIZE)
 
         while len(file_buf) > 0:
             hash_func().update(bytes(file_buf.encode("utf-8")))
             file_buf = self.read(config.HASH_BLOCK_SIZE)
+
+        if close_before_returning:
+            self.close()
 
         if hash_type == HashType.STRING:
             return hash_func().hexdigest()
@@ -413,7 +418,7 @@ class File(object):
 
         # Zip the files together
         with zipfile.ZipFile(self.backup_file, "w", zipfile.ZIP_DEFLATED) as backup:
-            backup.write(self.rel_path)
+            backup.write(self.relative_path)
             backup.write(hash_file_name)
 
         os.remove(hash_file_name)

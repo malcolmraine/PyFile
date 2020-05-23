@@ -52,8 +52,8 @@ class TestFile(unittest.TestCase):
         pass
 
     def test_rel_path(self):
-        self.assertIsInstance(self.test.rel_path, str)
-        self.assertEqual(os.path.exists(self.test.rel_path), True)
+        self.assertIsInstance(self.test.relative_path, str)
+        self.assertEqual(os.path.exists(self.test.relative_path), True)
 
     def test_abs_path(self):
         self.assertIsInstance(self.test.abs_path, str)
@@ -78,7 +78,7 @@ class TestFile(unittest.TestCase):
 
     def test_line_cnt(self):
         self.assertEqual(self.test.line_cnt, 0)
-        self.test.write("#" * 100)
+        # self.test._file_io_obj.write("#" * 100)
         # self.assertEqual(self.test.line_cnt, 1)
         # self.test.write("#" * 100)
         # self.assertEqual(self.test.line_cnt, 2)
@@ -135,6 +135,12 @@ class TestFile(unittest.TestCase):
         self.test.write("#" * 100000)
         self.assertIsInstance(self.test.sha256(), str)
         self.assertEqual(len(self.test.sha256()), 64)
+
+        # Test when file is closed
+        self.test.close()
+        self.assertIsInstance(self.test.sha256(), str)
+        self.assertEqual(len(self.test.sha256()), 64)
+        self.assertFalse(self.test.is_open)
 
     def test_delete(self):
         self.assertTrue(os.path.exists(self.test.abs_path))
