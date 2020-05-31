@@ -31,11 +31,12 @@ SOFTWARE.
 
 import os
 import pathlib
+from functools import lru_cache
 from enum import Enum
 import hashlib
 import zipfile
 import re
-from PyFile import config
+from PyFile.config import HASH_BLOCK_SIZE
 from PyFile import utilities
 
 
@@ -314,11 +315,8 @@ class File(object):
 
         :return: Hash of the file contents.
         """
-        if self.modified or self._md5_hash is None:
-            self._md5_hash = self._get_hash(hashlib.md5, hash_type)
-            return self._md5_hash
-        else:
-            return self._md5_hash
+        self._md5_hash = self._get_hash(self.last_modified, hashlib.md5, hash_type)
+        return self._md5_hash
 
     def sha256(self, hash_type=HashType.STRING) -> str or int or hex or bytes:
         """
@@ -327,25 +325,30 @@ class File(object):
 
         :return: Hash of the file contents
         """
-        if self.modified or self._sha256_hash is None:
-            self._sha256_hash = self._get_hash(hashlib.sha256, hash_type)
-            return self._sha256_hash
-        else:
-            return self._sha256_hash
+        return self._get_hash(self.last_modified, hashlib.sha256, hash_type)
 
-    def _get_hash(self, hash_func, hash_type):
-        close_before_returning = False
+    @lru_cache(maxsize=1)
+    def _get_hash(self, m_time, hash_func, hash_type: HashType) -> hex or str:
+        """
+        Private function to allow the hash calculation to use LRU caching.
+        If the file has not been modified and a hash has previously been calculated,
+        we can just use the previous value rather than recalculating the hash.
+
+        :param m_time: st_mtime or last modified time.
+        :param hash_func: Type of hash function to use (MD5 or SHA256)
+        :param hash_type: String or hex return type.
+        :return: String or hex value containing the hash for the file contents.
+        """
         if not self.is_open:
             self.open('r')
-            close_before_returning = True
 
-        file_buf = self.read(config.HASH_BLOCK_SIZE)
+        file_buf: str = self._file_io_obj.read(HASH_BLOCK_SIZE)
 
-        while len(file_buf) > 0:
+        while len(file_buf):
             hash_func().update(bytes(file_buf.encode("utf-8")))
-            file_buf = self.read(config.HASH_BLOCK_SIZE)
+            file_buf = self._file_io_obj.read(HASH_BLOCK_SIZE)
 
-        if close_before_returning:
+        if self.is_open:
             self.close()
 
         if hash_type == HashType.STRING:
@@ -392,6 +395,7 @@ class File(object):
 
     def write(self, string) -> int:
         """
+        Wrapper for the builting file object write function.
 
         :param string:
         :return:
@@ -400,6 +404,8 @@ class File(object):
 
     def backup(self, directory=""):
         """
+        Creates a backup of the file. This is a ZIP directory that includes a hash
+        of the file contents.
 
         :param directory:
         :return:
