@@ -33,7 +33,7 @@ import os
 import pathlib
 from functools import lru_cache
 from enum import Enum
-import hashlib
+from hashlib import sha256, md5
 import zipfile
 import re
 from PyFile.config import HASH_BLOCK_SIZE
@@ -81,8 +81,7 @@ class File(object):
         "file_class",
         "deleted",
         "backup_file",
-        "_sha256_hash",
-        "_md5_hash",
+        "_stat",
     ]
 
     def __init__(self, path: str, open_file=True, mode="r", temporary=False):
@@ -93,21 +92,20 @@ class File(object):
         self._file_io_obj = None
         self.exists: bool = True
         self.is_open: bool = False
-        self.file_class = None
+        self.file_class: FileClass or None = None
         self.deleted: bool = False
-        self.backup_file = None
-        self._sha256_hash: str or None = None
-        self._md5_hash: str or None = None
+        self.backup_file: str or None = None
+        self._stat = None
 
         if not os.path.exists(path) and mode in CREATE_MODES:
             open(path, mode).close()
 
         if os.path.exists(path) and os.path.isfile(path):
             self._path_obj: pathlib.Path = pathlib.Path(path)
+            self._stat = os.stat(self.abs_path)
 
             if open_file:
                 self.open(mode)
-                self.is_open = True
 
             if self.basename[0].startswith("."):
                 if temporary:
@@ -137,6 +135,7 @@ class File(object):
             self.delete()
 
     @property
+    @lru_cache(maxsize=1)
     def basename(self) -> str:
         """
         Property returning the name of the file with the extension.
@@ -146,52 +145,79 @@ class File(object):
         return str(self._path_obj.name)
 
     @property
+    @lru_cache(maxsize=1)
     def dirname(self) -> str:
         """
         Property returning the directory the file is located in.
 
         :return: String containing the name of the file.
         """
-        return str(self.abs_path[: -(len(self.basename) + 1)])
+        return self.abs_path[: -(len(self.basename) + 1)]
 
     @property
+    @lru_cache(maxsize=1)
     def filename(self) -> str:
         """
         Property returning the name of the file without the extension.
 
         :return: String containing the name of the file.
         """
-        return str(self._path_obj.name)[: -len(self.ext)]
+        return self.basename[: -(len(self.ext) + 1)]
 
     @property
-    def ext(self, period=True) -> str:
+    @lru_cache(maxsize=1)
+    def ext(self) -> str:
         """
         Property returning the extension of the file
 
         :return: String containing the extension of the file.
         """
-        return ("." if period else "") + self.basename.split(".")[-1]
+        return self.basename.split(".")[-1]
 
     @property
     def mode(self) -> str:
+        """
+        Getter for the mode property.
+
+        :return: string
+        """
         return self._mode
 
     @mode.setter
-    def mode(self, value):
+    def mode(self, value) -> None:
+        """
+        Setter for the mode property.
+
+        :param value: File mode to set.
+        :return: No return value.
+        """
         if value in FILE_MODES:
             self._mode = value
         else:
             raise Exception(f"Invalid file access mode: '{value}'")
 
     @property
+    @lru_cache(maxsize=4)
     def owner(self) -> str:
+        """
+        Property returning the owner of the file.
+
+        :return: string
+        """
         return self._path_obj.owner()
 
     @property
+    @lru_cache(maxsize=4)
     def group(self) -> str:
+        """
+        Property returning the group the file belongs to.
+
+        :return: string
+        """
         return self._path_obj.group()
 
     @property
+    @lru_cache(maxsize=4)
     def abs_path(self) -> str:
         """
         Property returning the absolute path of the file.
@@ -201,6 +227,7 @@ class File(object):
         return str(self._path_obj.absolute())
 
     @property
+    @lru_cache(maxsize=4)
     def relative_path(self) -> str:
         """
         Property returning the path of the file relative to the current directory.
@@ -216,7 +243,7 @@ class File(object):
 
         :return: Float
         """
-        return self.stat.st_mtime
+        return self._stat.st_mtime
 
     @property
     def size(self) -> int:
@@ -225,7 +252,7 @@ class File(object):
 
         :return: Integer
         """
-        return self.stat.st_size
+        return self._stat.st_size
 
     @property
     def modified(self) -> bool:
@@ -234,7 +261,7 @@ class File(object):
 
         :return: Boolean indicating whether the file has been modified.
         """
-        return self.cached_stamp < self.last_modified
+        return self.cached_stamp < self._stat.st_mtime
 
     @property
     def line_cnt(self) -> int:
@@ -242,6 +269,15 @@ class File(object):
         Property returning the line count of the file.
 
         :return: Integer
+        """
+        return self._line_cnt(self._stat.st_mtime)
+
+    @lru_cache(maxsize=4)
+    def _line_cnt(self, m_time) -> int:
+        """
+        Helper function to allow the line_cnt property to use LRU caching.
+        :param m_time:
+        :return:
         """
         return len(self.readlines())
 
@@ -315,8 +351,7 @@ class File(object):
 
         :return: Hash of the file contents.
         """
-        self._md5_hash = self._get_hash(self.last_modified, hashlib.md5, hash_type)
-        return self._md5_hash
+        return self._get_hash(self.last_modified, md5, hash_type)
 
     def sha256(self, hash_type=HashType.STRING) -> str or int or hex or bytes:
         """
@@ -325,7 +360,7 @@ class File(object):
 
         :return: Hash of the file contents
         """
-        return self._get_hash(self.last_modified, hashlib.sha256, hash_type)
+        return self._get_hash(self.last_modified, sha256, hash_type)
 
     @lru_cache(maxsize=1)
     def _get_hash(self, m_time, hash_func, hash_type: HashType) -> hex or str:
@@ -339,8 +374,11 @@ class File(object):
         :param hash_type: String or hex return type.
         :return: String or hex value containing the hash for the file contents.
         """
+        close_before_returning = False
+
         if not self.is_open:
-            self.open('r')
+            close_before_returning = True
+            self.open("r")
 
         file_buf: str = self._file_io_obj.read(HASH_BLOCK_SIZE)
 
@@ -348,7 +386,7 @@ class File(object):
             hash_func().update(bytes(file_buf.encode("utf-8")))
             file_buf = self._file_io_obj.read(HASH_BLOCK_SIZE)
 
-        if self.is_open:
+        if close_before_returning:
             self.close()
 
         if hash_type == HashType.STRING:
@@ -400,9 +438,10 @@ class File(object):
         :param string:
         :return:
         """
+        self._get_hash.cache_clear()
         return self._file_io_obj.write(string)
 
-    def backup(self, directory=""):
+    def backup(self, directory="") -> str:
         """
         Creates a backup of the file. This is a ZIP directory that includes a hash
         of the file contents.
