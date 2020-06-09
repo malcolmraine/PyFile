@@ -197,7 +197,7 @@ class File(object):
             raise Exception(f"Invalid file access mode: '{value}'")
 
     @property
-    @lru_cache(maxsize=4)
+    @lru_cache(maxsize=1)
     def owner(self) -> str:
         """
         Property returning the owner of the file.
@@ -207,7 +207,7 @@ class File(object):
         return self._path_obj.owner()
 
     @property
-    @lru_cache(maxsize=4)
+    @lru_cache(maxsize=1)
     def group(self) -> str:
         """
         Property returning the group the file belongs to.
@@ -217,7 +217,7 @@ class File(object):
         return self._path_obj.group()
 
     @property
-    @lru_cache(maxsize=4)
+    @lru_cache(maxsize=1)
     def abs_path(self) -> str:
         """
         Property returning the absolute path of the file.
@@ -227,7 +227,7 @@ class File(object):
         return str(self._path_obj.absolute())
 
     @property
-    @lru_cache(maxsize=4)
+    @lru_cache(maxsize=1)
     def relative_path(self) -> str:
         """
         Property returning the path of the file relative to the current directory.
@@ -272,7 +272,7 @@ class File(object):
         """
         return self._line_cnt(self._stat.st_mtime)
 
-    @lru_cache(maxsize=4)
+    @lru_cache(maxsize=1)
     def _line_cnt(self, m_time) -> int:
         """
         Helper function to allow the line_cnt property to use LRU caching.
@@ -363,7 +363,7 @@ class File(object):
         return self._get_hash(self.last_modified, sha256, hash_type)
 
     @lru_cache(maxsize=1)
-    def _get_hash(self, m_time, hash_func, hash_type: HashType) -> hex or str:
+    def _get_hash(self, m_time: float, hash_func: sha256 or md5, hash_type: HashType) -> hex or str:
         """
         Private function to allow the hash calculation to use LRU caching.
         If the file has not been modified and a hash has previously been calculated,
